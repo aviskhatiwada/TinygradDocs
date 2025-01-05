@@ -73,7 +73,7 @@ This class is responsible for handling compilation/buffer allocation; canonicali
 Thus when the Buffer is initalized and allocated like so,   
 ```
 buf=Buffer(device='CLANG', size=1,  dtype=dtypes.int8, options=BufferSpec(cpu_access=False)).allocate()
-print(buf.as_buffer()[0]) # read byte through .as_buffer->.copyout
+print(tinygrad.helpers.from_mv(buf.as_buffer())[0]); del buf # -> \x00 copyes out a byte, though a (char *) cast.
 ```
 
 The Device will be referenced through __get_canonicalized_item(ix), which takes `ix` as the device that will handle device-specific importing (via importlib and inspect)
@@ -87,6 +87,15 @@ The Device will be referenced through __get_canonicalized_item(ix), which takes 
     if DEBUG >= 1: print(f"opened device {ix} from pid:{os.getpid()}")
     self._opened_devices.add(ix)
     return ret #these classes specific to device/device compilers will be returned
+```
+
+Note: `tinygrad.helpers` is a module which includes miscellaneous convience functions, such as cache/data retrieval, File IO, and metrics objects. For instance, the simplified 
+helper.tqdm class records metrics on completion through iterables, and the like. Much like tqdm.tqdm, SI() and HMS() is recorded, which respectively represent byte counts according to
+math.log(size, 1e3), and record time through modulos/divisons by powers of 60. A simple example is shown below.
+
+```
+tqdm=tinygrad.helpers.tqdm(iterable=iterable, desc="list iterations", unit='  iterations', unit_scale=True)
+for n in range(len(iterable)): tqdm.update(n=1,close=True)
 ```
 
 
