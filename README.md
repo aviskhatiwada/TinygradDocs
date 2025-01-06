@@ -97,7 +97,7 @@ byte counts according to math.log(size, 1e3), and record time through modulos/di
 tqdm=tinygrad.helpers.tqdm(iterable=iterable, desc="list iterations", unit='  iterations', unit_scale=True)
 for n in range(len(iterable)): tqdm.update(n=1,close=True)
 ```
-Similarly, a `Profiling` class is also within `helpers`, offering a simple way to access the relative speed of assessed functions, perhaps for debugging purposes. A simple use of it is shown here:
+Similarly, a `Profiling` class is also within `helpers`, offering a simple way to access the relative speed of specified functions, perhaps for debugging purposes. A simple use of it is shown here:
 
 ```
 import os,pstats
