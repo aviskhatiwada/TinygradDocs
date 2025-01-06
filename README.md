@@ -89,28 +89,19 @@ The Device will be referenced through __get_canonicalized_item(ix), which takes 
     return ret #these classes specific to device/device compilers will be returned
 ```
 
-Note: `tinygrad.helpers` is a module which includes miscellaneous convience functions, such as cache/data retrieval, File IO, and metrics objects. For instance, the simplified 
-helper.tqdm class records metrics on completion through iterables, and the like. Much like tqdm.tqdm, SI() and HMS() is recorded, which respectively represent byte counts according to
-math.log(size, 1e3), and record time through modulos/divisons by powers of 60. A simple example is shown below.
+Note: `tinygrad.helpers` is a module which includes miscellaneous convience functions, such as cache/data retrieval, Tempfile IO, and metrics objects. For instance, the simplified 
+helper.tqdm class records metrics on completion through iterables, and the like. Much like tqdm.tqdm, SI() and HMS() are implemented within the tqdm class. Respectively, these methods represent 
+byte counts according to math.log(size, 1e3), and record time through modulos/divisons by powers of 60. A simple example is shown below.
 
 ```
 tqdm=tinygrad.helpers.tqdm(iterable=iterable, desc="list iterations", unit='  iterations', unit_scale=True)
 for n in range(len(iterable)): tqdm.update(n=1,close=True)
 ```
+Similarly, a `Profiling` class is also within `helpers`, offering a simple way to access the relative speed of assessed functions, perhaps for debugging purposes. A simple use of it is shown here:
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```
+import os,pstats
+PROFILE_FN="out.proc"
+with helpers.Profiling(enabled=True, fn=(fn:=os.path.join(os.getcwd(),PROFILE_FN) if PROFILE_FN else None)): time.sleep(1)
+pstats.Stats(PROFILE_FN).strip_dirs().sort_stats("tottime").print_stats(1) # this returns the profiled function that had taken the longest time per-call (ref. "tottime")
+```
