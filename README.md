@@ -94,6 +94,7 @@ helper.tqdm class records metrics on completion through iterables, and the like.
 byte counts according to math.log(size, 1e3), and record time through modulos/divisons by powers of 60. A simple example is shown below.
 
 ```
+iterable=[_ for _ in range(10)]
 tqdm=tinygrad.helpers.tqdm(iterable=iterable, desc="list iterations", unit='  iterations', unit_scale=True)
 for n in range(len(iterable)): tqdm.update(n=1,close=True)
 ```
