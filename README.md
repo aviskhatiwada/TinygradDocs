@@ -1,3 +1,4 @@
+*** A personal diary for explaining to myself tinygrad concepts. Touring @mesozoicegg 's tutorials and the tinygrad source. ***  
 **1.**
 Compilation is performed by creation of an Abstract-Syntax-Tree, at the top of which is a universal Memory-Buffer branch. For the given example (the multiplication of two tensors against the 0th dimension), LOAD, MUL, SUM, and STORE are the Ops that populate the AST. These Ops are afterwards linearized in order to be translated by the codegen utility. On being linearized, these Ops represent variable definitions (DEFINE\_GLOBAL), accumulator definitions (DEFINE\_ACC), integer/constant definitions, arithmetic operations (ALU), loop definitions (LOOP, ENDLOOP), and stores (STORE).  
 
@@ -101,8 +102,38 @@ for n in range(len(iterable)): tqdm.update(n=1,close=True)
 Similarly, a `Profiling` class is also within `helpers`, offering a simple way to access the relative speed of specified functions, perhaps for debugging purposes. A simple use of it is shown here:
 
 ```
-import os,pstats
+import os,pstat
 PROFILE_FN="out.proc"
 with helpers.Profiling(enabled=True, fn=(fn:=os.path.join(os.getcwd(),PROFILE_FN) if PROFILE_FN else None)): time.sleep(1)
-pstats.Stats(PROFILE_FN).strip_dirs().sort_stats("tottime").print_stats(1) # this returns the profiled function that had taken the longest time per-call (ref. "tottime")
+pstats.Stats(PROFILE_FN).strip_dirs().sort_stabts("tottime").print_stats(1) # this returns the profiled function that had taken the longest time per-call (ref. "tottime")
 ```
+In the next article, about the utility of `@TinyJit`, some of the basics about GPU compilation is touched on- specifically just how the executable code is created on a GPU device. In Metal, the MSL is 
+used to abstract operations that are to be performed concurrently along different thread indexes. The MTLDevice is called, and is used to call functions from MTLLibraries (MTLLirbaries are created through
+calls from the Device object; the DeviceAdder is responsible for handling the functions / operations that are done in the GPU). The Metal `Command Buffer` is responsible for doing the compilation, and is constructed
+through a `Command Encoder` which takes in, as arguments, all relevant bufferes, thread/threadgroup-counts, PSOs needed for the computation.  
+
+In the source, the `.get_runner` method is responsible for handling cache hits (through the globally defined method_cache, through `.get(ckey)` and `.get(bkey)`. JIT functions mainly to reload the command queue once a 
+repeated commmand buffer is recognized; a similar kind of caching is done when identical UOps are realized. @Jit functions cannot be nested, thus the conditionality of the JIT in the `llama` example, where an argument
+specifies whether the `.forward` pass will be decorated by TinyJit; this will prevent a nesting error if the `.train` method has already been decorated.  
+Because of Serial JIT execution, inerleaven sharding/"batching" may be problmeatic due to a device-check in JIT. Even if the same operation is done in different devices (i.e., METAL and METAL:1), the command graph  
+may not be reused due to the device switch affecting `can_share_graph`, or the batched kernel being recognized as only affecting a single device.
+
+
+**<ins>Loop Unrolling</ins>**  
+The kernel operations used in adjusting the locality of loop iterations, and the issuing of global (gid) and local (lid) thread blocks and groups include codegen.kernel.ops.UNROLL and codegen.kernel.ops.UPCAST.  
+The UPCAST Op. determines how many operations are done by a single kernel, while UNROLL fixes the number of iterations, when an operation is performed across a given axis (ie., .UNROLL(axis, amt)).
+Hence, in the given example, upcasting with arguments (0,8) on a summation operations of two (4,4) tensors adjusts gix only to (0-1), with the gidx0 pointer being gix << 3. The number of threads can also
+be specified by OptOps.LOCAL, which determines the amount of values that are to be locally retrieved by a given number of threads. OptOps.GROUP and OptOps.GROUP are able to use shared memory among threads;
+in given first example (with .GROUP), the tensor is accessed through strides of 4, and the reduce moves by 2, and two threads access one value each; these are summed and put
+
+```
+(all even indexes are handled by t0, odd ones t1)
+Tensor.ones(4,4) ->  (gid may represent "rows" while rid represents row-halves; each part of the half is carried by threads l0 and l1)
+  for loop ( 
+    * at gid=0, lid=0: 
+      * at rid=0, acc=1 [Tensor[0][0]] --> thread0 
+    * at gid=0, lid=0:
+      *  at rid=1, acc=2 [Tensor[0][2] --> thread0 
+      } :: the other elements of the row are carried by l1;  
+```
+After the `threadgroup_barrier` only l0 is used to compute the sum of the values for each reduced row.
