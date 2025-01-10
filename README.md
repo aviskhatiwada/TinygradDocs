@@ -64,7 +64,7 @@ The Tensor class initalizes similar parameters to the Function class; initalizat
 
 **<ins>Device</ins>**
 
-This class is responsible for handling compilation/buffer allocation; canonicalization is when a given device is made able to refer to class objects within the appropriate file (within /runtime/ops_*.py) that pertains to the device performing data operations. For instance, when a Buffer from tinygrad.devices is being allocated, it calls `Device.__getitem__` through `[]` to get the appropriate allocator:  
+This class is responsible for handling compilation/buffer allocation; canonicalization is when a given device is made able to refer to class objects within the appropriate file (within /runtime/ops_\*.py) that pertains to the device performing data operations. For instance, when a Buffer from tinygrad.devices is being allocated, it calls `Device.__getitem__` through `[]` to get the appropriate allocator:  
 ```
   def allocate(self, opaque=None, external_ptr=None) -> Buffer:
     assert not self.is_allocated(), "can't allocate already allocated buffer"
