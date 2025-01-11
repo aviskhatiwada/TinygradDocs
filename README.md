@@ -1,4 +1,5 @@
 *** A personal diary for explaining to myself tinygrad concepts. Touring @mesozoicegg 's tutorials and the tinygrad source. ***  
+
 **1.**
 Compilation is performed by creation of an Abstract-Syntax-Tree, at the top of which is a universal Memory-Buffer branch. For the given example (the multiplication of two tensors against the 0th dimension), LOAD, MUL, SUM, and STORE are the Ops that populate the AST. These Ops are afterwards linearized in order to be translated by the codegen utility. On being linearized, these Ops represent variable definitions (DEFINE\_GLOBAL), accumulator definitions (DEFINE\_ACC), integer/constant definitions, arithmetic operations (ALU), loop definitions (LOOP, ENDLOOP), and stores (STORE).  
 
@@ -136,4 +137,39 @@ Tensor.ones(4,4) ->  (gid may represent "rows" while rid represents row-halves; 
       *  at rid=1, acc=2 [Tensor[0][2] --> thread0 
       } :: the other elements of the row are carried by l1;  
 ```
-After the `threadgroup_barrier` only l0 is used to compute the sum of the values for each reduced row.
+After the `threadgroup_barrier` only l0 is used to compute the sum of the values for each reduced row.  
+
+
+**<ins>VIZ Environ:</ins>**
+
+To get a visual representation of the AST, this environment variable can be used. To view the source code responsible for optimization / "Pattern Matching", the right panel can be sequenced. In the given example, the following code was displayed; here, it is annotated to explain just how the original AST was modified.
+
+```
+def lower_load_store(ctx: IndexContext, x: UOp): 
+  # this pattern is for the "load_store" op, which is when the input is a load, and its source defines a lid/indexed variable 
+  idx, valid = x.st_arg.to_indexed_uops(ctx.ridxs if x.op is Ops.LOAD and x.src[0].op is Ops.DEFINE_LOCAL else ctx.idxs)
+  # TODO: check has_valid in UPat, not here
+  has_valid = valid.op is not Ops.CONST or valid.arg is not True
+  buf = x.src[0]
+  
+  # ~~~~ this branch is taken
+  if x.op is Ops.LOAD:
+    # barrier is () since the src op is a DEFINE_GLOBAL (gid)
+    barrier = (UOp(Ops.BARRIER, dtypes.void, (x.src[2],)),) if x.src[0].op is Ops.DEFINE_LOCAL else () 
+    return UOp(Ops.LOAD, x.dtype, (buf.index(idx, valid if has_valid else None),) + barrier)
+
+  # NOTE: only store the local reduceop in the threads that are actually doing the reduce
+  
+  # This handles STORE / ASSIGN
+  if cast(PtrDType, x.src[0].dtype).local and x.src[2].op is Ops.ASSIGN:
+    reduce_input = x.src[2].src[1].src[1] if x.src[2].src[1].src[1] is not x.src[2].src[0] else x.src[2].src[1].src[0]
+    store_back = reduce_input.op is Ops.LOAD and cast(PtrDType, reduce_input.src[0].dtype).local
+  else: store_back = False
+  # NOTE: If we're storing the reduced value back into each thread, need to zero-out the reduced axes
+  if store_back: idx, _ = x.st_arg.to_indexed_uops([u.const_like(0) if u in x.src[2].src else u for u in ctx.idxs])
+  if (not cast(PtrDType, x.src[0].dtype).local) or store_back:
+    for oidx, ridx in zip(ctx.idxs, ctx.ridxs):
+      if oidx is not ridx: valid = valid * oidx.eq(0)
+    has_valid = valid.op is not Ops.CONST or valid.arg is not True
+return UOp(Ops.STORE, dtypes.void, (buf.index(idx, valid if has_valid else None), x.src[2]))
+```
